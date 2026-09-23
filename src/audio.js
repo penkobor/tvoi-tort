@@ -118,6 +118,15 @@ export function playBlowOut() {
   noise(0, { dur: 0.45, gain: 0.12, from: 1200, to: 250, q: 0.6 })
 }
 
+// Paper catching fire: a soft roar with crackles scattered over it.
+export function playBurn(duration = 4) {
+  if (!ctx) return
+  noise(0.1, { dur: duration, gain: 0.06, from: 700, to: 250, q: 0.4 })
+  for (let t = 0.2; t < duration; t += 0.04 + Math.random() * 0.13) {
+    noise(t, { dur: 0.025 + Math.random() * 0.04, gain: 0.04 + Math.random() * 0.08, from: 2400 + Math.random() * 2600, to: 1100, q: 3 })
+  }
+}
+
 export function playSparkle() {
   ;[12, 16, 19, 24, 28].forEach((s, i) => bell(freq(s), i * 0.05, { dur: 1.4, gain: 0.08, bright: 0.8 }))
 }

@@ -4,9 +4,11 @@ import { CakeBuilder } from './cake.js'
 import { Candles } from './candles.js'
 import { Confetti } from './confetti.js'
 import { TOOLS, tool, makeItem, makeSpray, orientTo, renderThumbnails, DECOR_SCALE } from './decor.js'
+import { WishLetter } from './wishes.js'
+import { renderPoster } from './poster.js'
 import { startMic } from './mic.js'
 import * as audio from './audio.js'
-import { TEXT, LETTER, NAME, AGE, APP_TITLE, SHAPES, SPONGES, CREAMS, GLAZES, BORDERS } from './config.js'
+import { TEXT, LETTER, WISH, NAME, AGE, APP_TITLE, SHAPES, SPONGES, CREAMS, GLAZES, BORDERS } from './config.js'
 
 const $ = (id) => document.getElementById(id)
 const body = document.body
@@ -30,13 +32,17 @@ $('decor-note').textContent = TEXT.decorHint
 $('saved-hint').textContent = TEXT.saveHint
 $('letter-eyebrow').textContent = `${AGE} · ${new Date().getFullYear()}`
 $('letter-title').textContent = LETTER.title
-$('letter-intro').textContent = LETTER.intro
-for (const line of LETTER.lines) {
-  const li = document.createElement('li')
-  li.textContent = line
-  $('letter-list').append(li)
+for (const line of LETTER.body) {
+  const p = document.createElement('p')
+  p.textContent = line
+  $('letter-body').append(p)
 }
 $('letter-signature').textContent = LETTER.signature
+$('wish-eyebrow').textContent = `${AGE} · ${new Date().getFullYear()}`
+$('wish-title').textContent = WISH.title
+$('wish-lead').textContent = WISH.lead
+$('wish-send').textContent = WISH.send
+$('wish-skip').textContent = WISH.skip
 
 // ---------- Renderer & scene ----------
 const canvas = $('scene')
@@ -66,6 +72,7 @@ candles.group.rotation.y = 0
 cake.group.add(candles.group)
 const confetti = new Confetti(12)
 scene.add(confetti.mesh)
+const letter = new WishLetter(scene)
 
 // ---------- Camera rig ----------
 // The cake is framed inside the free band of the screen (between the header and
@@ -98,6 +105,11 @@ function frame() {
     goal.target.set(0, 0.6, 0)
     goal.radius = 2.35
     goal.elev = 0.36
+  } else if (state === 'letter' || state === 'burn') {
+    // Room above the candles for the letter and its sparks.
+    goal.target.set(0, topY + 1.7, 0)
+    goal.radius = 1.5
+    goal.elev = 0.18
   } else {
     goal.target.set(0, topY + 0.3, 0)
     goal.radius = 1.6
@@ -140,6 +152,8 @@ let selectedTool = 'strawberry'
 let mic = null
 let lastTouch = -10
 let clock = 0
+let wishes = []
+let onTap = null
 
 function setStage(next) {
   state = next
@@ -301,13 +315,96 @@ async function lightCandles() {
   setMood('night')
   await wait(900)
   candles.ignite()
-  await wait(900)
-  showHint(TEXT.wish)
+  await wait(1100)
   setStage('wish')
-  await wait(2800)
+  const list = await askWishes()
+  if (list.length) {
+    wishes = list
+    await sendLetter()
+  } else {
+    showHint(TEXT.wish)
+    await wait(2800)
+  }
   showHint(TEXT.blowHint)
   $('mic').hidden = false
   setStage('blow')
+}
+
+// ---------- Letter to next year ----------
+const wishInputs = WISH.placeholders.map((placeholder, i) => {
+  const li = document.createElement('li')
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.maxLength = 90
+  input.placeholder = placeholder
+  input.enterKeyHint = i < WISH.placeholders.length - 1 ? 'next' : 'done'
+  input.setAttribute('aria-label', `Желание ${i + 1}`)
+  li.append(input)
+  $('wish-lines').append(li)
+  return input
+})
+
+function readWishes() {
+  return wishInputs.map((i) => i.value.trim()).filter(Boolean)
+}
+
+function syncSend() {
+  $('wish-send').disabled = readWishes().length === 0
+}
+wishInputs.forEach((input, i) => {
+  input.addEventListener('input', syncSend)
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    if (i < wishInputs.length - 1) wishInputs[i + 1].focus()
+    else $('wish-form').requestSubmit()
+  })
+})
+
+function askWishes() {
+  document.fonts?.load(`500 25px "Caveat"`)
+  syncSend()
+  $('wish').hidden = false
+  return new Promise((resolve) => {
+    const finish = (list) => {
+      document.activeElement?.blur()
+      // iOS can leave the page scrolled after the keyboard; put it back.
+      window.scrollTo(0, 0)
+      $('wish').hidden = true
+      $('wish-form').onsubmit = null
+      $('wish-skip').onclick = null
+      resolve(list)
+    }
+    $('wish-form').onsubmit = (e) => {
+      e.preventDefault()
+      if (readWishes().length) finish(readWishes())
+    }
+    $('wish-skip').onclick = () => finish([])
+  })
+}
+
+async function sendLetter() {
+  setStage('letter')
+  await document.fonts?.load(`500 62px "Caveat"`).catch(() => {})
+  await wait(700)
+  letter.show(wishes, camera, candles.worldFlamePositions())
+  showHint(WISH.burnHint)
+  // A tap sends it; if she just watches, it goes by itself.
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 7000)
+    onTap = () => {
+      clearTimeout(timer)
+      resolve()
+    }
+  })
+  onTap = null
+  showHint('')
+  setStage('burn')
+  audio.playBurn(5.1)
+  await letter.burn()
+  audio.playSparkle()
+  showHint(WISH.sent)
+  await wait(3000)
 }
 
 async function celebrate() {
@@ -338,6 +435,7 @@ let spin = 0
 canvas.addEventListener('pointerdown', (e) => {
   lastTouch = clock
   if (state === 'blow') blowAt(e.clientX, e.clientY)
+  if (state === 'letter' && onTap) onTap()
   pointer = { id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false }
   canvas.setPointerCapture?.(e.pointerId)
   spin = 0
@@ -470,51 +568,13 @@ $('again-button').addEventListener('click', () => {
 })
 $('save-button').addEventListener('click', savePicture)
 
-// A 4:5 picture of the cake on the party background, made synchronously so the
-// iOS share sheet still counts as a response to the tap.
+// The picture is made synchronously so the iOS share sheet still counts as a
+// response to the tap.
 function savePicture() {
-  const W = 1080
-  const H = 1350
-  const ratio = renderer.getPixelRatio()
-  // Face the numerals to the camera for the picture, then put the turntable back.
-  const spinAngle = cake.group.rotation.y
-  cake.group.rotation.y = 0
-  renderer.setPixelRatio(1)
-  renderer.setSize(W, H, false)
-  camera.aspect = W / H
-  camera.clearViewOffset()
-  const dist = 2.25 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / 0.8
-  camera.position.set(0, Math.sin(0.36), Math.cos(0.36)).multiplyScalar(dist).add(new THREE.Vector3(0, 0.35, 0))
-  camera.lookAt(0, 0.35, 0)
-  camera.setViewOffset(W, H, 0, H * 0.07, W, H)
-  camera.updateProjectionMatrix()
-  renderer.render(scene, camera)
-
-  const poster = document.createElement('canvas')
-  poster.width = W
-  poster.height = H
-  const g = poster.getContext('2d')
-  const bg = g.createRadialGradient(W / 2, H * 0.1, 0, W / 2, H * 0.1, H * 1.05)
-  bg.addColorStop(0, '#fff3e6')
-  bg.addColorStop(0.48, '#fcdbe6')
-  bg.addColorStop(1, '#e2dcff')
-  g.fillStyle = bg
-  g.fillRect(0, 0, W, H)
-  g.drawImage(renderer.domElement, 0, 0, W, H)
-  g.fillStyle = '#3b2a3d'
-  g.textAlign = 'center'
-  g.font = '500 96px "Cormorant Garamond", serif'
-  g.fillText(TEXT.finaleTitle.replace('!', ''), W / 2, H - 150)
-  g.fillStyle = 'rgba(59,42,61,0.6)'
-  g.font = '600 26px "Manrope", sans-serif'
-  g.fillText(`${AGE}  ·  ${new Date().toLocaleDateString('ru-RU')}`, W / 2, H - 96)
-
-  cake.group.rotation.y = spinAngle
-  renderer.setPixelRatio(ratio)
+  const dataUrl = renderPoster({ renderer, scene, camera, cake, wishes })
   resize()
   renderer.render(scene, camera)
 
-  const dataUrl = poster.toDataURL('image/jpeg', 0.92)
   const bytes = atob(dataUrl.split(',')[1])
   const buffer = new Uint8Array(bytes.length)
   for (let i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i)
@@ -559,7 +619,7 @@ function tick(now = performance.now()) {
   const idle = clock - lastTouch > 2.5
   const autoSpin = state === 'intro' || state === 'finale' || (state === 'build' && step < 2)
   if (!pointer && idle && autoSpin) r.y += dt * 0.22
-  if (['candles', 'wish', 'blow', 'finale-wait'].includes(state)) {
+  if (['candles', 'wish', 'letter', 'burn', 'blow', 'finale-wait'].includes(state)) {
     const wrapped = THREE.MathUtils.euclideanModulo(r.y + Math.PI, Math.PI * 2) - Math.PI
     r.y = wrapped + (0 - wrapped) * Math.min(1, dt * 2.5)
   }
@@ -567,6 +627,7 @@ function tick(now = performance.now()) {
   cake.update(dt)
   candles.update(dt, clock)
   confetti.update(dt)
+  letter.update(dt, clock, camera)
 
   const night = body.dataset.mood === 'night'
   const ease = Math.min(1, dt * 1.5)
@@ -600,5 +661,9 @@ if (import.meta.env.DEV) {
     blowAll: () => candles.flames.forEach((_, i) => extinguish(i)),
     goStep,
     lightCandles,
+    get wishes() {
+      return wishes
+    },
+    wishInputs,
   }
 }

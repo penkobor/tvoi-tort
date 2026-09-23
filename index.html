@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Manrope:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Manrope:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/style.css" />
@@ -125,10 +125,22 @@
           </button>
           <p class="eyebrow" id="letter-eyebrow"></p>
           <h2 class="letter-title" id="letter-title"></h2>
-          <p class="letter-intro" id="letter-intro"></p>
-          <ul class="letter-list" id="letter-list"></ul>
+          <div class="letter-body" id="letter-body"></div>
           <p class="letter-signature" id="letter-signature"></p>
         </article>
+      </section>
+
+      <section class="overlay overlay-top" id="wish" hidden>
+        <form class="letter-paper wish-paper" id="wish-form" autocomplete="off">
+          <p class="eyebrow" id="wish-eyebrow"></p>
+          <h2 class="letter-title wish-title" id="wish-title"></h2>
+          <p class="wish-lead" id="wish-lead"></p>
+          <ol class="wish-lines" id="wish-lines"></ol>
+          <div class="wish-actions">
+            <button class="text-button" id="wish-skip" type="button"></button>
+            <button class="primary-button" id="wish-send" type="submit"></button>
+          </div>
+        </form>
       </section>
 
       <section class="overlay" id="saved" hidden>
