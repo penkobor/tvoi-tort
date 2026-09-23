@@ -8,7 +8,7 @@ import { WishLetter } from './wishes.js'
 import { renderPoster } from './poster.js'
 import { startMic } from './mic.js'
 import * as audio from './audio.js'
-import { TEXT, LETTER, WISH, NAME, AGE, APP_TITLE, SHAPES, SPONGES, CREAMS, GLAZES, BORDERS } from './config.js'
+import { TEXT, WISH, NAME, AGE, APP_TITLE, SHAPES, SPONGES, CREAMS, GLAZES, BORDERS } from './config.js'
 
 const $ = (id) => document.getElementById(id)
 const body = document.body
@@ -22,7 +22,6 @@ $('start-lead').textContent = TEXT.startLead
 $('start-button').textContent = TEXT.startButton
 $('finale-title').textContent = NAME ? `${TEXT.finaleTitle.replace('!', '')}, ${NAME}!` : TEXT.finaleTitle
 $('finale-lead').textContent = TEXT.finaleLead
-$('letter-button').textContent = TEXT.letterButton
 $('save-button').textContent = TEXT.saveButton
 $('again-button').textContent = TEXT.againButton
 $('mic-label').textContent = TEXT.micButton
@@ -30,14 +29,6 @@ $('back').textContent = TEXT.back
 $('shape-note').textContent = TEXT.shapeHint
 $('decor-note').textContent = TEXT.decorHint
 $('saved-hint').textContent = TEXT.saveHint
-$('letter-eyebrow').textContent = `${AGE} · ${new Date().getFullYear()}`
-$('letter-title').textContent = LETTER.title
-for (const line of LETTER.body) {
-  const p = document.createElement('p')
-  p.textContent = line
-  $('letter-body').append(p)
-}
-$('letter-signature').textContent = LETTER.signature
 $('wish-eyebrow').textContent = `${AGE} · ${new Date().getFullYear()}`
 $('wish-title').textContent = WISH.title
 $('wish-lead').textContent = WISH.lead
@@ -560,7 +551,6 @@ document.querySelectorAll('.overlay').forEach((overlay) => {
     if (e.target === overlay || e.target.closest('[data-close]')) overlay.hidden = true
   })
 })
-$('letter-button').addEventListener('click', () => openOverlay('letter'))
 $('again-button').addEventListener('click', () => {
   $('finale').hidden = true
   cake.clearDecor()
